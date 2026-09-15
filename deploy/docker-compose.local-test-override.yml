@@ -1,0 +1,22 @@
+# 로컬 Windows 개발환경 전용 임시 오버레이 — 커밋/배포 대상 아님.
+#
+# ac-database-kr 이미지는 Linux에서 구워져서 데이터 디렉터리의
+# lower_case_table_names=0으로 고정돼 있다. Windows Docker Desktop의 바인드 마운트
+# (${BASE_DATA_DIR}/mysql, NTFS)는 대소문자를 구분하지 않아서 MySQL이 런타임에
+# lower_case_table_names=2로 재판단하고, 기존 값(0)과 충돌해 기동 자체가 실패한다
+# (실제 배포 대상인 Synology/Ubuntu 등 Linux 호스트에서는 파일시스템이 대소문자를
+# 구분해서 이 문제가 발생하지 않는다 — deploy/docker-compose.yml은 그대로 둔다).
+#
+# 로컬에서만 Docker named volume(Linux VM 내부, 대소문자 구분)으로 바꿔서 우회한다:
+#   docker compose -f docker-compose.yml -f docker-compose.local-test-override.yml up -d
+services:
+  ac-database:
+    volumes:
+      - ac-database-local-test:/var/lib/mysql
+  # backup-storage.ts + Dockerfile(mariadb-client) 변경 검증용 — 로컬에서 docker build로
+  # 만든 이미지를 harbor pull 없이 바로 테스트한다.
+  ac-web:
+    image: ac-web-backup-test:local
+
+volumes:
+  ac-database-local-test:

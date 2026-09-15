@@ -1,0 +1,49 @@
+[worldserver]                            
+
+###################################################################################################
+#  mod-npc-free-professions
+###################################################################################################
+
+#
+#   NpcFreeProfessions.Enable
+#       Description: Enables the module
+#       Default:    1 - Enabled, default
+#                   0 - Disabled
+#
+
+NpcFreeProfessions.Enable = 1
+
+#
+#   NpcFreeProfessions.GivenCraftLevel
+#       Description: The skill level given for a profession
+#       Default:    450 - default
+#                   375
+#                   300
+#                   225
+#                   150
+#                    75
+#
+
+NpcFreeProfessions.GivenCraftLevel = 450
+
+#
+#   NpcFreeProfessions.Enable.EachProfession
+#       Description: Enable/Disable each profession
+#       Default:    1 - Enabled, default
+#                   0 - Disabled
+#
+
+NpcFreeProfessions.Enable.Alchemy = 1
+NpcFreeProfessions.Enable.Blacksmithing = 1
+NpcFreeProfessions.Enable.Leatherworking = 1
+NpcFreeProfessions.Enable.Tailoring = 1
+NpcFreeProfessions.Enable.Engineering = 1
+NpcFreeProfessions.Enable.Enchanting = 1
+NpcFreeProfessions.Enable.Jewelcrafting = 1
+NpcFreeProfessions.Enable.Inscription = 1
+NpcFreeProfessions.Enable.Herbalism = 1
+NpcFreeProfessions.Enable.Skinning = 1
+NpcFreeProfessions.Enable.Mining = 1
+NpcFreeProfessions.Enable.Cooking = 1
+NpcFreeProfessions.Enable.FirstAid = 1
+NpcFreeProfessions.Enable.Fishing = 1

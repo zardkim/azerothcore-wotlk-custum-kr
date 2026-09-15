@@ -1,0 +1,209 @@
+# AzerothCore Playerbot 리팩 — Docker 배포 (한글화 완료본)
+
+65개 모듈 + 한글화 SQL(01~06) + 한글 DBC + 실제 맵/vmap/mmap 데이터가 전부 적용된 상태로
+자신의 컨테이너 레지스트리(`.env`의 `DOCKER_REGISTRY`)에 이미지로 구워져 있어야 합니다.
+이미지를 직접 빌드/push하는 방법은 아래 "코어/모듈 업데이트 적용" 절 참고.
+
+**상시 컨테이너**: `ac-database`, `ac-worldserver`, `ac-authserver`, `ac-web`(웹 포털) +
+1회성 `ac-dirs-init`(폴더 준비), `ac-playerbots-data-init`(mod-playerbots 갱신 확인).
+
+모든 실제 데이터는 **사용자가 지정한 폴더 아래에 눈에 보이는 구조**로 저장됩니다 — 어떤 볼륨/디스크든
+경로 하나(`BASE_DATA_DIR`)만 바꾸면 그쪽에 설치됩니다.
+
+```
+${BASE_DATA_DIR}/
+├── configs/         worldserver.conf, authserver.conf, 모듈 conf (직접 수정 가능)
+├── data/            실제 맵/vmap/mmap/dbc (koKR 포함) — ⚠ 직접 복사해야 함 (아래 참고)
+│   └── playbots/    mod-playerbots 자체 갱신 확인용 SQL (자동 생성됨)
+├── mysql/           MySQL 데이터 파일 (65개 모듈+한글화 SQL 이미 적용됨, 비어있으면 자동 시딩)
+└── logs/            서버 로그
+```
+
+## 배포 방법
+
+```bash
+# 1) .env 준비 — BASE_DATA_DIR·DOCKER_REGISTRY를 배포 환경에 맞게 지정
+cp .env.example .env
+vi .env
+# Synology NAS 기본값: BASE_DATA_DIR=/volume1/docker/azerothcore (볼륨 번호는 원하는 대로)
+# Ubuntu 등 일반 리눅스 기본값: BASE_DATA_DIR=/opt/azerothcore
+# DOCKER_REGISTRY: 이 이미지들을 구워서 올려둔 자신의 레지스트리 주소+프로젝트
+# (예: harbor.example.com/azerothcore, 또는 Docker Hub 계정 등)
+
+# 2) 필요한 폴더 미리 생성 + configs 복사 (최초 1회만)
+chmod +x setup.sh
+./setup.sh
+
+# 3) 맵 데이터를 BASE_DATA_DIR/data 에 직접 복사 (최초 1회, 아래 참고) ⚠ 필수
+
+# 4) 레지스트리가 private면 로그인
+docker login "$DOCKER_REGISTRY"
+
+# 5) 실행
+docker compose pull
+docker compose up -d
+```
+
+### 3번: 맵 데이터(maps/vmaps/mmaps/dbc) 직접 복사
+
+용량이 커서(약 4GB) 이미지로 배포하지 않습니다. 기존에 정상 작동하던 AzerothCore 서버가 있다면
+그 `data/` 폴더(하위에 `maps`, `vmaps`, `mmaps`, `dbc` 폴더 포함)를 그대로 복사하면 됩니다:
+
+```bash
+cp -r <기존 서버 경로>/data/. "${BASE_DATA_DIR}/data/"
+```
+
+`dbc` 폴더 밑에 `koKR` 서브폴더가 없다면, 한글 DBC를 별도로 받아서 `${BASE_DATA_DIR}/data/dbc/koKR/`에
+넣어주세요 (AzerothCore가 기본 dbc 위에 로케일별로 자동으로 겹쳐서 읽습니다).
+
+## 계정/캐릭터 백업 · 복원
+
+`scripts/backup.sh`, `scripts/restore.sh`는 `acore_auth`(계정)와 `acore_characters`
+(캐릭터)만 백업/복원합니다. `acore_playerbots`(봇)와 `acore_world`(게임 콘텐츠)는
+대상이 아닙니다 — 봇은 재기동 시 알아서 다시 채워지고, 게임 콘텐츠는 `ac-database-kr`
+이미지의 베이크드 시드가 원본이기 때문입니다.
+
+```bash
+# 백업 (BASE_DATA_DIR/backups/<타임스탬프>/에 저장, 기본 14개 보관)
+./scripts/backup.sh
+BACKUP_KEEP=30 ./scripts/backup.sh   # 보관 개수 조절
+
+# 복원 (대상 DB가 비어있지 않으면 기본적으로 거부됨 — 병합이 아니라 덮어쓰기라서)
+find "$BASE_DATA_DIR/backups" -maxdepth 1 -type d   # 백업 목록 확인
+./scripts/restore.sh <backup_id>
+./scripts/restore.sh <backup_id> --force             # 기존 계정이 있어도 강제 덮어쓰기
+```
+
+복원 중에는 `ac-worldserver`/`ac-authserver`가 잠시 멈췄다가 완료 후 자동으로
+다시 시작됩니다.
+
+**웹 관리자 페이지**(`/admin/backups`)에서도 같은 작업을 할 수 있습니다 — 같은
+`${BASE_DATA_DIR}/backups` 볼륨을 공유해서 CLI로 만든 백업이 웹에도 보이고, 웹에서 만든
+백업을 CLI로도 복원할 수 있습니다. 단, 웹 UI는 docker 제어 권한이 없어서(의도적으로
+부여하지 않음) 복원 시 `ac-worldserver`/`ac-authserver`를 자동으로 멈추지 못합니다 —
+**웹 UI로 복원할 땐 점검 시간에만 하거나, 미리 CLI로 두 서비스를 내려두세요.**
+
+## 서버 초기화 (베이스라인으로 되돌리기)
+
+`scripts/reset.sh`는 `${BASE_DATA_DIR}/mysql`을 비워서 `ac-database-kr` 이미지에
+구워진 베이스라인(65개 모듈 + 한글화 SQL 적용 완료 상태)으로 되돌립니다. 진행 전
+계정/캐릭터를 **자동으로 먼저 백업**하므로 끌 수 없는 안전망이 걸려 있습니다.
+
+```bash
+./scripts/reset.sh                  # 초기화만 (계정/캐릭터는 빈 상태로 남음)
+./scripts/reset.sh --restore-after  # 초기화 직후 방금 만든 백업을 바로 복원
+                                     # (게임 콘텐츠만 베이스라인, 계정/캐릭터는 유지)
+```
+
+`RESET`을 직접 입력해야 진행되는 확인 프롬프트가 있고(`--yes`로 스킵 가능),
+`configs/`·`data/`(맵 등)·`logs/`는 건드리지 않습니다.
+
+## 코어/모듈 업데이트 적용
+
+코어(azerothcore-wotlk) 또는 65개 모듈 중 일부가 업데이트됐을 때, **라이브 서버의
+계정/캐릭터/기존 게임 콘텐츠를 보존한 채** 새 SQL·바이너리만 반영하는 절차입니다.
+
+### 1) 업데이트 확인 (아무것도 바꾸지 않음)
+
+```bash
+./scripts/check-updates.sh
+```
+코어는 `origin/<현재 브랜치>`, 각 모듈은 `modules.lock`에 고정된 commit과 원격 최신
+commit을 비교해서 표로 보여줍니다. 실제 반영 여부는 변경 로그를 보고 직접 판단하세요 —
+특히 `mod-playerbots`처럼 코어 자체에 영향을 주는 모듈은 신중하게 검토하세요.
+
+### 2) 반영하기로 했으면 — 소스 갱신 + 이미지 재빌드 (수동)
+
+```bash
+# modules.lock에서 해당 모듈 줄의 commit을 새 값으로 수정한 뒤
+./install-modules.sh                 # 또는 FORCE=1로 해당 모듈만 재설치
+# 코어/모듈 재컴파일 + 이미지 빌드 (build4.log에서 검증된 기존 파이프라인 재사용)
+# worldserver/authserver/db-import 이미지를 새 버전 태그로 harbor에 push
+```
+이 저장소는 처음부터 재현성을 위해 `modules.lock`으로 모듈 commit을 고정해뒀습니다
+(자동 최신화 없음 — breaking change 가능성 때문에 항상 사람이 판단).
+
+### 3) 라이브 서버에 반영
+
+```bash
+./scripts/apply-update.sh
+```
+순서: **①계정/캐릭터 백업(자동) → ②새 이미지 pull → ③`ac-db-import`로 증분 SQL 반영
+(해시 기반이라 이미 적용된 건 건너뜀) → ④worldserver/authserver를 새 이미지로 교체
+재기동.** `ac-db-import`는 평소 `docker compose up -d`에는 끼지 않는
+`profiles: [update]` 서비스라 업데이트할 때만(`apply-update.sh` 또는
+`docker compose up ac-db-import`) 실행됩니다.
+
+**롤백**: 이미지 태그를 `latest`로 덮어쓰지 말고 버전 태그로 관리해두면, 문제가 생겼을 때
+이전 태그로 `docker compose up -d`만으로 되돌릴 수 있습니다. `dbimport`가 적용한 SQL은
+기본적으로 전진 전용(forward-only)이라, DB 롤백이 꼭 필요하면 ①에서 만든 백업을
+`scripts/restore.sh`로 복원하세요.
+
+## 왜 이렇게 구성했나
+
+- `ac-database`는 SQL을 매번 다시 실행하는 대신 **이미 적용된 실제 DB 데이터 파일**을 이미지 안
+  별도 경로(seed)에 구워뒀습니다. 컨테이너 시작 시 `/var/lib/mysql`이 비어있으면 그 seed에서
+  자동으로 복사해 채운 뒤 mysqld를 시작합니다 (몇 초면 서비스 가능, SQL 재실행 없음).
+- 이미 데이터가 있으면 건너뛰므로, 재기동/재배포해도 **기존에 쌓인 실제 캐릭터/계정 데이터를
+  덮어쓰지 않습니다.**
+- 맵 데이터는 용량이 커서 Docker 이미지로 배포하면 Docker 저장소(보통 특정 볼륨에 고정)에 불필요한
+  용량이 이중으로 쌓이는 문제가 있어, 이미지가 아닌 **직접 복사** 방식으로 뺐습니다.
+
+## 최초 기동 후 반드시 할 일
+
+**realmlist 주소를 이 서버의 실제 접속 주소로 변경**하세요 (기본값은 로컬 테스트용 127.0.0.1):
+
+```bash
+docker exec -it ac-database mysql -uacore -pacore acore_auth \
+  -e "UPDATE realmlist SET address='<서버 IP 또는 도메인>' WHERE id=1;"
+```
+
+## 설정 수정
+
+`${BASE_DATA_DIR}/configs/worldserver.conf`, `authserver.conf`, `modules/*.conf`를 직접 열어서
+수정한 뒤 `docker compose restart ac-worldserver ac-authserver`로 반영하면 됩니다.
+
+봇 숫자 기본값은 `configs/modules/playerbots.conf`의 `AiPlayerbot.MinRandomBots` /
+`MaxRandomBots` = **20**입니다. 필요하면 원하는 숫자로 바꾸고 재시작하세요.
+
+## 완전 초기화하고 싶을 때
+
+수동으로 `rm -rf "${BASE_DATA_DIR}/mysql"` 하지 말고 `./scripts/reset.sh`를 쓰세요 — 초기화 직전
+계정/캐릭터를 자동으로 백업해주는 안전망이 있습니다. 자세한 내용은 위 "서버 초기화" 절 참고.
+
+## 로컬 Windows 개발환경에서 테스트할 때
+
+`ac-database-kr` 이미지는 Linux에서 구워져서 데이터 디렉터리가
+`lower_case_table_names=0`으로 고정돼 있습니다. Windows Docker Desktop의 바인드 마운트
+(NTFS, 대소문자 미구분)에서 이 이미지를 그대로 돌리면 MySQL이 기동 시점에 이 설정을
+`2`로 재판단하면서 충돌해 **기동 자체가 실패**합니다(실제 배포 대상인 Synology/Ubuntu 등
+Linux 호스트는 파일시스템이 대소문자를 구분해서 이 문제가 없습니다).
+
+로컬 Windows에서 스크립트나 웹 UI를 테스트해야 한다면, `${BASE_DATA_DIR}/mysql` 바인드
+마운트 대신 Docker named volume(Linux VM 내부, 대소문자 구분)을 쓰는
+`docker-compose.local-test-override.yml`을 같이 넘기세요 — 이 파일은 로컬 테스트 전용이라
+배포에는 쓰지 않습니다:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.local-test-override.yml up -d
+```
+
+## 구성 이미지
+
+| 이미지 | 태그 | 내용 |
+|---|---|---|
+| `ac-database-kr` | `1.0.0`, `latest` | 65개 모듈 SQL + 한글화 SQL(01~06) 적용 완료된 MySQL 데이터, 계정 acore/acore |
+| `ac-playerbots-data` | `1.0.0`, `latest` | mod-playerbots 자체 갱신 확인용 소스 SQL 트리 |
+| `ac-wotlk-worldserver` | `1.0.0`, `latest` | 65개 모듈 포함 컴파일된 worldserver 바이너리 |
+| `ac-wotlk-authserver` | `1.0.0`, `latest` | 65개 모듈 포함 컴파일된 authserver 바이너리 |
+
+모든 이미지 저작자: `zardkim` (OCI 라벨로 포함됨, `docker inspect <이미지> --format '{{json .Config.Labels}}'`로 확인 가능)
+
+## 포트
+
+- 3724: authserver (클라이언트 접속)
+- 8085: worldserver
+- 7878: SOAP
+- 3307: MySQL (다른 MySQL/MariaDB와 충돌 방지용으로 기본값을 3307로 뒀습니다)
+
+`.env`에서 `DOCKER_*_EXTERNAL_PORT` 값으로 변경 가능합니다.
