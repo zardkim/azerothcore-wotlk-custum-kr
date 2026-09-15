@@ -28,6 +28,25 @@
 /*.override.yml
 /*.override.yaml
 
+#
+# 이 저장소 전용 추가분 (ops/배포/한글화)
+#
+
+# 클라이언트에서 추출한 맵/DBC 데이터 - 라이선스상 재배포 불가, 각자 직접 추출해야 함
+/data/Cameras/
+/data/dbc/
+/data/maps/
+/data/mmaps/
+/data/vmaps/
+
+# 대용량 빌드/배포 산출물 - 소스 아님, 컨테이너 레지스트리가 원본
+*.tar.gz
+/build*.log
+/install-logs/
+
+# 비밀값이 든 실제 배포 환경파일 (예시 템플릿 deploy/.env.example만 커밋)
+deploy/.env
+
 !.gitkeep
 
 # default build directory if not specified by CMAKE configuration
