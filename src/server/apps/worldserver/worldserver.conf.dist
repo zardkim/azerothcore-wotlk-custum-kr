@@ -1434,7 +1434,7 @@ DontCacheRandomMovementPaths = 0
 #        Default:     1 - (Enabled)
 #                     0 - (Disabled)
 
-ActivateWeather = 1
+ActivateWeather = 0
 
 #
 #    ChangeWeatherInterval
@@ -2106,7 +2106,7 @@ PlayerStart.String = ""
 #        Default:     0 - Disabled
 #                     1 - Enabled
 
-EnablePlayerSettings = 0
+EnablePlayerSettings = 1
 
 #
 #    MaxPlayerLevel
@@ -2812,7 +2812,7 @@ ItemDelete.KeepDays = 0
 #        Default:     0 - Off, Use DB values
 #                     1 - On, Enforce DBC Values (default)
 
-DBC.EnforceItemAttributes = 1
+DBC.EnforceItemAttributes = 0
 
 #
 #    Rate.Drop.Item.Poor
@@ -3191,7 +3191,7 @@ Creature.Instance.TeleportToUnreachableTarget = 0
 #                                                                                      Racial Trait Swap, NPC - All Mounts Modules
 #        Default:     ""
 
-Creatures.CustomIDs = "190010,55005,999991,25462,98888,601014,34567,34568"
+Creatures.CustomIDs = "190010,55005,999991,25462,98888,601014,34567,34568,601026"
 
 #
 ###################################################################################################
@@ -3360,7 +3360,7 @@ Rate.InstanceResetTime = 1
 #                     0       - (Disabled, Instance maps are kept in memory until the instance
 #                               resets)
 
-Instance.UnloadDelay = 1800000
+Instance.UnloadDelay = 0
 
 #
 #   AccountInstancesPerHour
