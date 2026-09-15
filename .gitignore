@@ -38,6 +38,7 @@
 /data/maps/
 /data/mmaps/
 /data/vmaps/
+/한글화/DBC 3.3.5a 12340/
 
 # 대용량 빌드/배포 산출물 - 소스 아님, 컨테이너 레지스트리가 원본
 *.tar.gz
@@ -46,6 +47,9 @@
 
 # 비밀값이 든 실제 배포 환경파일 (예시 템플릿 deploy/.env.example만 커밋)
 deploy/.env
+
+# 웹 포털은 별도 레포로 분리 예정 - 이 저장소(코어+ops)에는 아직 포함하지 않음
+/web/
 
 !.gitkeep
 
