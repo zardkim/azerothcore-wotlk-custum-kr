@@ -151,20 +151,95 @@ commit을 비교해서 표로 보여줍니다. 실제 반영 여부는 변경 �
 
 ## 최초 기동 후 반드시 할 일
 
-**realmlist 주소를 이 서버의 실제 접속 주소로 변경**하세요 (기본값은 로컬 테스트용 127.0.0.1):
+### 1. realmlist 주소 설정
+
+기본값은 로컬 테스트용 `127.0.0.1`입니다. 클라이언트가 실제로 접근 가능한 주소로 바꿔야
+합니다(`flag`는 반드시 `0`이어야 합니다 — `3`이면 오프라인/버전 불일치로 클라이언트 목록에서
+빠집니다):
 
 ```bash
 docker exec -it ac-database mysql -uacore -pacore acore_auth \
-  -e "UPDATE realmlist SET address='<서버 IP 또는 도메인>' WHERE id=1;"
+  -e "UPDATE realmlist SET name='AzerothCore', address='<서버 IP 또는 도메인>' WHERE id=1;"
 ```
+
+- **같은 LAN에서만 접속** → 서버의 내부(사설) IP (예: `192.168.0.10`)
+- **외부에서도 접속 필요** → 공인 IP/도메인 + 공유기 포트포워딩(3724, 8085) 필요. 단, 공유기가
+  NAT 루프백(hairpin NAT)을 지원하지 않으면 같은 LAN 내부에서는 그 도메인으로 접속이 안 될 수
+  있습니다 — 이 경우 내부망에서는 내부 IP, 외부망에서는 도메인을 각각 써야 합니다.
+
+### 2. 계정 생성 및 GM 권한 설정
+
+```bash
+docker attach ac-worldserver
+```
+
+`AC>` 프롬프트에서:
+
+```
+account create <계정명> <비밀번호>
+account set gmlevel <계정명> 3 -1
+```
+
+`<gmlevel>`은 0(일반)~3(관리자), 마지막 인자는 렐름 ID(특정 렐름에만 적용하려면 그 ID, 서버의
+모든 렐름에 적용하려면 `-1`)입니다.
+
+**콘솔 종료는 반드시 `Ctrl+P`, `Ctrl+Q`(순서대로)** — `Ctrl+C`를 누르면 worldserver 프로세스
+자체가 종료됩니다.
+
+전체 GM 명령어 목록: [AzerothCore GM Commands](https://www.azerothcore.org/wiki/gm-commands)
 
 ## 설정 수정
 
 `${BASE_DATA_DIR}/configs/worldserver.conf`, `authserver.conf`, `modules/*.conf`를 직접 열어서
-수정한 뒤 `docker compose restart ac-worldserver ac-authserver`로 반영하면 됩니다.
+수정한 뒤 `docker compose restart ac-worldserver ac-authserver`로 반영하면 됩니다. `creature_
+template`/`npc_text`/`gossip_*` 등 DB 값을 직접 수정한 경우도 worldserver가 기동 시 메모리로
+캐싱하기 때문에 마찬가지로 재시작이 필요합니다(재시작하면 접속 중이던 봇/플레이어는 전부
+끊깁니다 — `ac-database` 컨테이너 자체는 재시작할 필요 없음).
 
-봇 숫자 기본값은 `configs/modules/playerbots.conf`의 `AiPlayerbot.MinRandomBots` /
-`MaxRandomBots` = **20**입니다. 필요하면 원하는 숫자로 바꾸고 재시작하세요.
+### 봇 숫자 조정
+
+설정 파일: `configs/modules/playerbots.conf`
+
+```
+AiPlayerbot.MinRandomBots = 20
+AiPlayerbot.MaxRandomBots = 20
+```
+
+기본 배포값은 `20`(가벼운 시작값)입니다. **봇 수가 많아질수록 더 많은 RAM/CPU가 필요**하므로
+서버 사양에 맞게 점진적으로 늘려가며 테스트하는 걸 권장합니다. 완전히 끄려면
+`AiPlayerbot.Enabled = 0`. 봇에게 직접 명령을 내리는 채팅 명령어 목록은
+[mod-playerbots Playerbot Commands](https://github.com/mod-playerbots/mod-playerbots/wiki/Playerbot-Commands)
+참고. 모듈이 제공하는 기능형 NPC 소환 명령어는
+[Wiki: NPC 소환 명령어](../../wiki/NPC-소환-명령어) 참고.
+
+## Windows PC에서 DB에 직접 접속하기
+
+매번 `docker exec`로 들어가는 대신 HeidiSQL/MySQL Workbench/DBeaver 등으로 서버의 DB에 직접
+접속해서 작업할 수 있습니다.
+
+| 항목 | 값 |
+|---|---|
+| 호스트 | 서버의 내부 IP (예: `192.168.0.10`) |
+| 포트 | `.env`의 `DOCKER_DB_EXTERNAL_PORT` (기본 `3307`) |
+| 계정 | `acore` / `acore` (또는 `root` — `.env`의 `DOCKER_DB_ROOT_PASSWORD`) |
+
+접속이 "Access denied"로 실패하면 계정의 허용 호스트를 확인하세요:
+
+```bash
+docker exec -it ac-database mysql -uroot -p<루트비밀번호> \
+  -e "SELECT user,host FROM mysql.user WHERE user='acore';"
+```
+
+`acore | %`가 없으면 추가:
+
+```sql
+CREATE USER IF NOT EXISTS 'acore'@'%' IDENTIFIED BY 'acore';
+GRANT ALL PRIVILEGES ON *.* TO 'acore'@'%';
+FLUSH PRIVILEGES;
+```
+
+DB를 직접 조작할 땐 한글 SQL 관련 [Wiki: 한글화 내역](../../wiki/한글화-내역)의 문자셋
+주의사항도 참고하세요(GUI 툴 접속 시 `SET NAMES utf8mb4;` 필요).
 
 ## 완전 초기화하고 싶을 때
 
@@ -207,3 +282,9 @@ docker compose -f docker-compose.yml -f docker-compose.local-test-override.yml u
 - 3307: MySQL (다른 MySQL/MariaDB와 충돌 방지용으로 기본값을 3307로 뒀습니다)
 
 `.env`에서 `DOCKER_*_EXTERNAL_PORT` 값으로 변경 가능합니다.
+
+## 문제가 생겼을 때
+
+실제 구축 과정에서 겪었던 컴파일 에러, mod-playerbots 크래시, Synology `@eaDir` DB 초기화 루프,
+realmlist 문제, 레지스트리 연결 실패 등은 [Wiki: 트러블슈팅](../../wiki/트러블슈팅)에 정리돼
+있습니다.
