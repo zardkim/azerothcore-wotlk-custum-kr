@@ -1,8 +1,15 @@
+<div align="center">
+
 # AzerothCore Playerbot 한글화 리팩 (KR)
 
-[AzerothCore](https://www.azerothcore.org/) + [mod-playerbots](https://github.com/mod-playerbots/mod-playerbots)를
-기반으로, **65개 모듈**과 **한글화 패치**를 적용하고 **Docker로 바로 배포**할 수 있게
-만든 개인용 커스텀 빌드입니다.
+**[한국어](README.md)** | [English](README.en.md)
+
+[AzerothCore](https://www.azerothcore.org/) + [mod-playerbots](https://github.com/mod-playerbots/mod-playerbots) 기반,
+**65개 모듈**과 **한글화 패치**를 적용하고 **Docker로 바로 배포**할 수 있게 만든 개인용 커스텀 빌드
+
+</div>
+
+---
 
 이 저장소의 목적은 세 가지입니다:
 1. 한글화된 소스와 설정을 **버전관리로 보전**한다.
