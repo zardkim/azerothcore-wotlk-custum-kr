@@ -12,6 +12,34 @@ modules**, **Korean localization patches**, and a **ready-to-deploy Docker stack
 
 ---
 
+## Project Overview
+
+This project is a fully Korean-localized personal server repack of **World of Warcraft:
+Wrath of the Lich King (3.3.5a)**, run on the [AzerothCore](https://www.azerothcore.org/)
+engine. Three things define it:
+
+- **A living world filled with human-like bots** — built on
+  [mod-playerbots](https://github.com/mod-playerbots/mod-playerbots), so even a single
+  player can run parties, raids, and battlegrounds with bots, and the world is
+  populated with random bots questing and roaming like real players.
+- **Gameplay extended by 65 bundled modules** — transmogrification, guild houses,
+  automatic instance difficulty scaling (AutoBalance), challenge modes (hardcore,
+  self-crafted-gear-only, etc.), staged expansion progression (Individual
+  Progression), an auction house bot, account-wide mounts/achievements,
+  cross-faction battlegrounds, and many more third-party and official modules
+  combine into a much richer experience than vanilla AzerothCore
+  (full list: [Wiki: Module list](../../wiki/사용-모듈-목록)).
+- **Full Korean localization** — roughly 90,000 Korean playerbot names, translated
+  and corrected item/NPC/guild-house text, 172 trainer/vendor NPCs on the "GM
+  island," starting-gear grants, and more, across the game's content
+  (details: [Wiki: Localization history](../../wiki/한글화-내역)).
+
+On top of that, this repository ships a **Docker deploy stack** (world/auth
+servers, a pre-baked and already-localized DB image, a web portal) and
+**operational automation for account/character backup & restore, server reset,
+and core/module updates** — everything needed for one person to stand up and run
+the server end to end.
+
 This repository exists for three reasons:
 1. **Preserve** the Korean-localized source and configuration under version control.
 2. Keep the update/rebuild process **convenient** by scripting it, for future reference.
