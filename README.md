@@ -42,7 +42,7 @@
 > 이 저장소는 [azerothcore/azerothcore-wotlk](https://github.com/azerothcore/azerothcore-wotlk)의
 > 포크인 [mod-playerbots/azerothcore-wotlk](https://github.com/mod-playerbots/azerothcore-wotlk)를
 > 기반으로 합니다. 코어 자체의 라이선스는 [GPL v2](LICENSE)이며, 원본 프로젝트 소개는
-> [.github/README.md](.github/README.md)에 그대로 남겨뒀습니다.
+> [docs/upstream-azerothcore-readme.md](docs/upstream-azerothcore-readme.md)에 그대로 남겨뒀습니다.
 
 ## 이 저장소에 추가/커스터마이징한 것
 

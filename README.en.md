@@ -50,7 +50,7 @@ This repository exists for three reasons:
 > [mod-playerbots/azerothcore-wotlk](https://github.com/mod-playerbots/azerothcore-wotlk),
 > itself a fork of [azerothcore/azerothcore-wotlk](https://github.com/azerothcore/azerothcore-wotlk).
 > The core itself is licensed under [GPL v2](LICENSE); the original project's own
-> README is kept untouched at [.github/README.md](.github/README.md).
+> README is kept untouched at [docs/upstream-azerothcore-readme.md](docs/upstream-azerothcore-readme.md).
 
 ## What this repository adds/customizes
 
