@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # install-modules.sh
-# AzerothCore Playerbot Docker 통합 구축 - 65개 모듈 자동 설치 스크립트
+# AzerothCore Playerbot Docker 통합 구축 - 73개 모듈 자동 설치 스크립트
 # 참조 문서: azerothcore_playerbot_docker_조사_계획서.md, 01~07 조사 문서, modules.lock
 #
 # 역할 (계획서 12장):
@@ -56,7 +56,12 @@ TIER4=(
   mod-npc-free-professions mod-random-enchants mod-war-effort mod-server-auto-shutdown
   mod-aoe-loot mod-account-mounts
 )
-ALL_MODULES=("${TIER1[@]}" "${TIER2[@]}" "${TIER3[@]}" "${TIER4[@]}")
+# 2026-09-19 추가분 — 참조모듈설정/modules/에 conf만 있고 소스가 빠져있던 8개
+TIER5=(
+  mod-flightmaster-whistle mod-learn-spells mod-mythic-plus mod-player-bot-reset
+  mod-weekendbonus mod-quest-loot-party mod-npc-subclass mod-dungeon-master
+)
+ALL_MODULES=("${TIER1[@]}" "${TIER2[@]}" "${TIER3[@]}" "${TIER4[@]}" "${TIER5[@]}")
 
 # core 커밋 검증이 필요한 모듈 (03-module-dependencies.md 3절)
 declare -A CORE_COMMIT_REQ=(
@@ -83,6 +88,7 @@ declare -A NPC_CUSTOM_IDS=(
   [mod-guildhouse]=55005
   [mod-1v1-arena]=999991
   [mod-skip-dk-starting-area]=25462
+  [mod-npc-subclass]=600001
 )
 
 # ── modules.lock 조회 ────────────────────────────────────────────────────
@@ -169,6 +175,14 @@ collect_sql() {
     cp -r "$dest/data/sql/playerbots"/. "$SQL_CUSTOM_DIR/playerbots"/ 2>/dev/null || true
   fi
 
+  # 비표준 경로 처리: mod-npc-subclass는 sql/world/ (data/ 접두어 자체가 없음)
+  if [[ -d "$dest/sql/world" ]]; then
+    target="$SQL_CUSTOM_DIR/db-world/$name"
+    mkdir -p "$target"
+    cp -r "$dest/sql/world"/. "$target"/ 2>/dev/null || true
+    warn "$name: 비표준 SQL 경로(sql/world/) 감지 → db-world/custom으로 정규화 복사"
+  fi
+
   # NPC entry ID 충돌 스캔 (03장 6절)
   if [[ -d "$SQL_CUSTOM_DIR" ]]; then
     grep -rhoE "INSERT INTO \`?creature_template\`? .*VALUES *\(([0-9]+)" "$SQL_CUSTOM_DIR" 2>/dev/null \
@@ -214,6 +228,10 @@ note_manual_steps() {
       echo "[manual] mod-changeablespawnrates: custom_creatures 테이블 생성 SQL 수동 적용 확인" >> "$MANUAL_STEPS_FILE" ;;
     mod-npc-enchanter)
       echo "[manual] mod-npc-enchanter: README가 'SQL 없음'이라 하나 실제로는 world SQL 존재 — 반드시 적용 확인" >> "$MANUAL_STEPS_FILE" ;;
+    mod-npc-subclass)
+      echo "[manual][core-source-patch] mod-npc-subclass: src/server/game/Entities/Player/PlayerStorage.cpp를 직접 수정해야 함 (allowEquip 체크 직전에 무기/방어구 숙련도 확인 블록 삽입) — 모듈 폴더만 두면 컴파일은 되지만 기능이 로그아웃 후 숙련도를 안 붙잡음. 자동 적용 안 함, 수동 패치 필요" >> "$MANUAL_STEPS_FILE" ;;
+    mod-player-bot-reset)
+      echo "[manual] mod-player-bot-reset: 모듈 자체 README에 'MODULE MERGED INTO PLAYERBOTS — 더 이상 필요 없음, 원본 보존 목적'이라고 명시돼 있음. mod-playerbots에 동일 리셋 로직이 이미 있는지 확인 후 중복이면 이 모듈은 비활성화할 것" >> "$MANUAL_STEPS_FILE" ;;
   esac
 }
 
@@ -257,7 +275,7 @@ check_npc_id_collisions() {
 
 # ── 메인 ─────────────────────────────────────────────────────────────────
 main() {
-  log "=== AzerothCore Playerbot 65개 모듈 설치 시작 ==="
+  log "=== AzerothCore Playerbot 73개 모듈 설치 시작 ==="
   log "Tier 1 (Playerbot 핵심) 설치 중..."
   for m in "${TIER1[@]}"; do install_one_module "$m"; done
 
@@ -270,6 +288,9 @@ main() {
   log "Tier 4 (독립 모듈 58개) 설치 중..."
   for m in "${TIER4[@]}"; do install_one_module "$m"; done
 
+  log "Tier 5 (2026-09-19 추가분 8개) 설치 중..."
+  for m in "${TIER5[@]}"; do install_one_module "$m"; done
+
   generate_shared_conf_notes
   check_npc_id_collisions
 
@@ -277,7 +298,7 @@ main() {
   installed_count=$(find "$MODULES_DIR" -maxdepth 1 -mindepth 1 -type d | wc -l)
 
   echo
-  log "=== 설치 완료: ${installed_count}/65 모듈 ==="
+  log "=== 설치 완료: ${installed_count}/73 모듈 ==="
   log "SQL 수집 위치     : $SQL_CUSTOM_DIR"
   log "설정 수집 위치    : $CONF_COLLECT_DIR"
   log "수동 조치 목록    : $MANUAL_STEPS_FILE"

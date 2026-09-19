@@ -1,5 +1,6 @@
 # modules.lock
-# 65개 모듈의 고정 branch/commit (조사일: 2026-08-25, 각 저장소 shallow clone으로 직접 확인)
+# 73개 모듈의 고정 branch/commit (조사일: 2026-08-25, 각 저장소 shallow clone으로 직접 확인.
+# 마지막 8개는 2026-09-19 추가 — 참조모듈설정/modules/에 conf만 있고 소스가 빠져있던 모듈)
 # format: name|url|branch|commit_sha|commit_date
 # install-modules.sh는 기본적으로 이 파일 기준 commit으로 checkout한다 (재현성, 계획서 13장)
 mod-playerbots|https://github.com/mod-playerbots/mod-playerbots|master|2f7d9f774987d0157c6a0d0cc08c40bec3db3945|2026-08-24
@@ -67,3 +68,11 @@ mod-server-auto-shutdown|https://github.com/azerothcore/mod-server-auto-shutdown
 mod-aoe-loot|https://github.com/TerraByte-tbwps/mod-aoe-loot|main|be4f06af8e1b455cc31a227f12e2d0a741c799e0|2025-12-03
 mod-account-mounts|https://github.com/azerothcore/mod-account-mounts|master|65ea80fb9e8c89924556cb050eac5462a668a2cb|2025-03-18
 mod-player-bot-level-brackets|https://github.com/DustinHendrickson/mod-player-bot-level-brackets|main|aca43a5478fd0ee9e6cc18f0ed154bc62cf17eac|2026-08-24
+mod-flightmaster-whistle|https://github.com/silviu20092/mod-flightmaster-whistle|master|2349c88b9451716ca16ec94ce86f86afab283f9e|2026-09-19
+mod-learn-spells|https://github.com/azerothcore/mod-learn-spells|master|016b92d520f343d074ffd5d46016a94f4a3a6ebd|2026-09-19
+mod-mythic-plus|https://github.com/silviu20092/mod-mythic-plus|master|e2a487d358c1c1c562d686f53a3e269b2cf1b8c5|2026-09-19
+mod-player-bot-reset|https://github.com/DustinHendrickson/mod-player-bot-reset|main|54ea0906764c5d5ed77b75cb2e840892a6fd5b73|2026-09-19
+mod-weekendbonus|https://github.com/noisiver/mod-weekendbonus|master|5a51516091d93d5814ee7a1c730e1b95e6ce04c1|2026-09-19
+mod-quest-loot-party|https://github.com/pangolp/mod-quest-loot-party|master|6f073c1bef1bba1aa73787d1e30db7429f2b1c7b|2026-09-19
+mod-npc-subclass|https://github.com/xiii-hearts/mod-npc-subclass|master|18b5aab5df87d6d82fa5e7052ccbc2dad3047538|2026-09-19
+mod-dungeon-master|https://github.com/InstanceForge/mod-dungeon-master|main|612eaf804cd7fc4af74fde66d376a571a5550077|2026-09-19
