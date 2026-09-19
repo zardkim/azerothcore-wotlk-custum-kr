@@ -51,6 +51,13 @@ deploy/.env
 # 웹 포털은 별도 레포로 분리 예정 - 이 저장소(코어+ops)에는 아직 포함하지 않음
 /web/
 
+# 관련 프로젝트 폴더를 하위로 통합했지만, 각각 독립 git/순수 참고자료/런타임 데이터라
+# 이 저장소가 추적하지 않음 (2026-09-19 폴더 정리)
+/external-repos/
+/reference/
+/local-runtime/
+/참조모듈설정/
+
 !.gitkeep
 
 # default build directory if not specified by CMAKE configuration
