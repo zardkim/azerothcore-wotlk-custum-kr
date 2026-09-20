@@ -248,3 +248,66 @@ def run_command(host, port, user, key_path, command, timeout=120):
     if result.returncode != 0:
         return False, combined or f"종료 코드 {result.returncode}"
     return True, combined
+
+
+def _run_scp(local_path, remote_spec, port, key_path, timeout, upload, legacy):
+    """scp 한 번 실행. upload=True 면 local_path -> remote_spec, False 면 반대.
+    write_text_detailed() 와 같은 -O 폴백 이유(최신 Windows OpenSSH의 SFTP 기본
+    전환 vs 일부 sshd 의 sftp-server 서브시스템 미설정)를 그대로 따른다."""
+    args = ["scp", "-o", "BatchMode=yes", "-o", "ConnectTimeout=8",
+            "-o", "StrictHostKeyChecking=accept-new"]
+    if legacy:
+        args.append("-O")
+    if port:
+        args += ["-P", str(port)]
+    if key_path:
+        args += ["-i", key_path]
+    if upload:
+        args += [local_path, remote_spec]
+    else:
+        args += [remote_spec, local_path]
+    try:
+        result = subprocess.run(
+            args, capture_output=True, timeout=timeout,
+            creationflags=CREATE_NO_WINDOW if os.name == "nt" else 0,
+        )
+    except subprocess.TimeoutExpired:
+        return False, f"{timeout}초 안에 응답이 없습니다."
+    except (OSError, subprocess.SubprocessError) as e:
+        return False, str(e)
+    if result.returncode == 0:
+        return True, None
+    stderr = result.stderr.decode("utf-8", errors="replace").strip()
+    return False, stderr or f"종료 코드 {result.returncode}"
+
+
+def _scp_with_fallback(local_path, remote_spec, port, key_path, timeout, upload):
+    ok, err = _run_scp(local_path, remote_spec, port, key_path, timeout, upload, legacy=False)
+    if not ok and err and "subsystem" in err.lower():
+        ok, err = _run_scp(local_path, remote_spec, port, key_path, timeout, upload, legacy=True)
+    return ok, err
+
+
+def download_file(host, port, user, key_path, remote_path, local_path, timeout=120):
+    """remote_path 파일을 local_path 로 그대로 받아온다(바이너리, 인코딩 변환 없음 -
+    conf 파일용 read_text()와 달리 백업 .sql.gz 같은 바이너리 파일에 쓴다).
+    성공하면 (True, None), 실패하면 (False, 이유)."""
+    if not host:
+        return False, "호스트 주소가 비어 있습니다."
+    if not ssh_client_available():
+        return False, "이 컴퓨터에 SSH 클라이언트(scp.exe)가 없습니다."
+    remote_spec = f"{user}@{host}:{remote_path}" if user else f"{host}:{remote_path}"
+    return _scp_with_fallback(local_path, remote_spec, port, key_path, timeout, upload=False)
+
+
+def upload_file(host, port, user, key_path, local_path, remote_path, timeout=120):
+    """local_path 파일을 remote_path 로 그대로 올린다(바이너리, 인코딩 변환 없음).
+    성공하면 (True, None), 실패하면 (False, 이유)."""
+    if not host:
+        return False, "호스트 주소가 비어 있습니다."
+    if not ssh_client_available():
+        return False, "이 컴퓨터에 SSH 클라이언트(scp.exe)가 없습니다."
+    if not os.path.isfile(local_path):
+        return False, f"로컬 파일이 없습니다: {local_path}"
+    remote_spec = f"{user}@{host}:{remote_path}" if user else f"{host}:{remote_path}"
+    return _scp_with_fallback(local_path, remote_spec, port, key_path, timeout, upload=True)

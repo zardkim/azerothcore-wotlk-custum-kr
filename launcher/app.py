@@ -3135,17 +3135,21 @@ GAME_SETTINGS_FIELDS = {
 
 # ==================== 백업 / 복원 창 ====================
 class BackupManageDialog(tk.Toplevel):
-    """원격 서버의 계정/캐릭터 백업(scripts/backup.sh)을 만들고, 목록에서 골라
-    복원(scripts/restore.sh)한다 - 전부 SSH로 원격 셸 명령을 실행한다
-    (backup_remote.py). 월드/봇 데이터는 백업 대상이 아니다(스크립트 쪽 정책)."""
+    """계정/캐릭터 백업(scripts/backup.sh)을 원격 서버에서 실행한 뒤 결과 파일을
+    "이 런처가 실행되는 컴퓨터"로 내려받아 보관하고, 복원(scripts/restore.sh)할
+    때는 골라놓은 로컬 백업을 다시 서버로 올려서 실행한다 - 서버 쪽에 백업이
+    쌓이지 않고 운영자 PC 한 곳에 모인다 (backup_remote.py, SSH+SCP).
+    월드/봇 데이터는 백업 대상이 아니다(스크립트 쪽 정책)."""
 
     def __init__(self, app, server):
         super().__init__(app.root)
         self.app = app
         self.server = server
+        # 서버마다 별도 폴더 - 여러 서버를 오가며 관리하는 도구라 섞이면 안 됨.
+        self.local_dir = os.path.join(paths.BASE_DIR, "backups", server.get("id", "default"))
         self.title(f"백업 / 복원 - {server.get('name', '서버')}")
         self.configure(bg="#0d1a26")
-        dlg_w, dlg_h = 620, 560
+        dlg_w, dlg_h = 620, 580
         center_on_screen(self, dlg_w, dlg_h)
         self.resizable(False, False)
         self.transient(app.root)
@@ -3163,7 +3167,7 @@ class BackupManageDialog(tk.Toplevel):
             theme.START_TOP, theme.START_BOTTOM, theme.START_BORDER, theme.START_TEXT,
             hover_border=theme.START_HOVER_BORDER, hover_text_color=theme.START_HOVER_TEXT,
             font=theme.korean(11, "bold"), radius=3, container_bg="#0d1a26", key="backup-create",
-            tooltip="지금 상태로 acore_auth/acore_characters 백업 (월드/봇 데이터는 대상 아님)",
+            tooltip="서버에서 백업을 만들고 이 컴퓨터로 내려받음 (봇 계정 제외, 월드 데이터 대상 아님)",
         )
         self.btn_backup.pack(side="right")
         self.btn_refresh = GradientButton(
@@ -3173,6 +3177,9 @@ class BackupManageDialog(tk.Toplevel):
             font=theme.korean(11, "bold"), radius=3, container_bg="#0d1a26", key="backup-refresh",
         )
         self.btn_refresh.pack(side="right", padx=(0, 8))
+
+        tk.Label(body, text=f"저장 위치: {self.local_dir}", bg="#0d1a26", fg=theme.TEXT_MUTED3,
+                  font=theme.mono(9), anchor="w", wraplength=580).pack(fill="x", padx=16, pady=(6, 0))
 
         tk.Frame(body, bg=theme.HEADER_BORDER, height=1).pack(fill="x", padx=16, pady=(10, 0))
 
@@ -3218,14 +3225,13 @@ class BackupManageDialog(tk.Toplevel):
 
     # ---------------- 목록 ----------------
     def _refresh_list(self):
-        host, port, user, key_path, deploy_dir = self._conn()
         for w in self.list_frame.winfo_children():
             w.destroy()
         tk.Label(self.list_frame, text="불러오는 중...", bg="#0d1a26",
                   fg=theme.TEXT_MUTED3, font=theme.korean(11)).pack(anchor="w", pady=8)
 
         def worker():
-            backups, err = backup_remote.list_backups(host, port, user, key_path, deploy_dir)
+            backups, err = backup_remote.list_local_backups(self.local_dir)
             self.after(0, lambda: self._apply_list(backups, err))
 
         threading.Thread(target=worker, daemon=True).start()
@@ -3283,15 +3289,20 @@ class BackupManageDialog(tk.Toplevel):
         if not deploy_dir:
             self._append_result("설정(⚙) > 원격 접속 정보 에서 \"원격 배포 폴더\"를 먼저 지정하세요.")
             return
-        self._append_result("> 백업 생성 중... (mysqldump 크기에 따라 몇 분 걸릴 수 있습니다)")
+        self._append_result("> 서버에서 백업 생성 중... (mysqldump 크기에 따라 몇 분 걸릴 수 있습니다)")
         self._set_busy(True)
 
         def worker():
-            ok, output = backup_remote.run_backup(host, port, user, key_path, deploy_dir)
+            backup_id, output = backup_remote.run_backup_and_download(
+                host, port, user, key_path, deploy_dir, self.local_dir)
             def done():
-                self._append_result(output or ("백업 완료" if ok else "백업 실패"))
+                if backup_id:
+                    self._append_result(output)
+                    self._append_result(f">> 이 컴퓨터로 내려받기 완료: {os.path.join(self.local_dir, backup_id)}")
+                else:
+                    self._append_result(output or "백업 실패")
                 self._set_busy(False)
-                if ok:
+                if backup_id:
                     self._refresh_list()
             self.after(0, done)
 
@@ -3308,11 +3319,12 @@ class BackupManageDialog(tk.Toplevel):
         ):
             return
         host, port, user, key_path, deploy_dir = self._conn()
-        self._append_result(f"> '{backup_id}' 복원 중...")
+        self._append_result(f"> '{backup_id}' 서버로 업로드 후 복원 중...")
         self._set_busy(True)
 
         def worker():
-            ok, output = backup_remote.run_restore(host, port, user, key_path, deploy_dir, backup_id)
+            ok, output = backup_remote.run_restore_from_local(
+                host, port, user, key_path, deploy_dir, self.local_dir, backup_id)
             def done():
                 self._append_result(output or ("복원 완료" if ok else "복원 실패"))
                 self._set_busy(False)
