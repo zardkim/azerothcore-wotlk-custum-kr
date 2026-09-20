@@ -1,0 +1,18 @@
+# 개인 설정(경로/DB 계정/GM 계정 비밀번호 등 민감 정보 포함) - 커밋 금지
+config/
+
+# 빌드 산출물 (build.bat/build_public.bat 로 다시 생성됨)
+build/
+dist/
+dist_public/
+*.spec
+
+# 실행 중 생성되는 로그
+logs/
+last_crash.log
+error.log
+*.launcher.log
+
+# Python
+__pycache__/
+*.pyc

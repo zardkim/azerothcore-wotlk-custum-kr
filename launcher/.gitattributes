@@ -1,0 +1,10 @@
+# 루트 .gitattributes의 `* text eol=lf`가 전체 파일에 적용되는데, 이 폴더의
+# 이미지/폰트/아이콘/실행파일은 진짜 바이너리라 줄바꿈 변환 대상이 아니다.
+# binary 는 -text -diff 를 한 번에 설정해준다.
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.webp  binary
+*.ico   binary
+*.ttf   binary
+*.exe   binary
