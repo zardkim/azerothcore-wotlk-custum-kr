@@ -26,12 +26,13 @@ mkdir -p "$BASE_DATA_DIR/web-data"
 mkdir -p "$BASE_DATA_DIR/backups"
 echo ">> data/, data/playbots/, mysql/, logs/, web-data/, backups/ 폴더 준비 완료"
 
-if [ -d "$BASE_DATA_DIR/configs" ]; then
-  echo ">> configs/ 폴더가 이미 있어 건너뜁니다 (기존 설정 보존)"
-else
-  cp -r configs "$BASE_DATA_DIR/"
-  echo ">> configs/ 폴더 복사 완료"
-fi
+# configs/ 폴더 전체가 있는지 여부가 아니라 "파일 단위"로 비교해서, 이미 있는 파일은
+# 절대 안 건드리고(운영자가 직접 튜닝한 값 보존) 새 파일(신규 모듈 conf 등)만 추가한다.
+# 최초 설치든 이미 운영 중인 서버에 새 모듈 conf를 추가하는 경우든 이 한 줄로 처리된다.
+# shellcheck source=scripts/lib/sync-configs.sh
+source "$(dirname "${BASH_SOURCE[0]}")/scripts/lib/sync-configs.sh"
+mkdir -p "$BASE_DATA_DIR/configs"
+sync_new_configs "$BASE_DATA_DIR" "configs"
 
 echo
 echo ">> 준비 완료. 이제 다음을 실행하세요:"

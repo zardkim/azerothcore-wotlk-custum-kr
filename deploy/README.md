@@ -159,14 +159,24 @@ commit을 비교해서 표로 보여줍니다. 실제 반영 여부는 변경 �
 
 ### 3) 라이브 서버에 반영
 
+먼저 서버의 `deploy/` 폴더 자체를 최신 내용으로 갱신하세요(예: `git pull`, 또는
+바뀐 파일만 `scp`) — 새 모듈의 conf.dist가 `deploy/configs/`에, 새 스크립트가
+`deploy/scripts/`에 들어있어야 다음 단계가 그걸 찾아서 씁니다.
+
 ```bash
 ./scripts/apply-update.sh
 ```
-순서: **①계정/캐릭터 백업(자동) → ②새 이미지 pull → ③`ac-db-import`로 증분 SQL 반영
-(해시 기반이라 이미 적용된 건 건너뜀) → ④worldserver/authserver를 새 이미지로 교체
+순서: **①계정/캐릭터 백업(자동) → ②새 이미지 pull → ③새로 추가된 모듈의 기본 설정
+파일 배치(이미 있는 설정은 절대 안 건드림) → ④`ac-db-import`로 증분 SQL 반영(해시
+기반이라 이미 적용된 건 건너뜀) → ⑤worldserver/authserver를 새 이미지로 교체
 재기동.** `ac-db-import`는 평소 `docker compose up -d`에는 끼지 않는
 `profiles: [update]` 서비스라 업데이트할 때만(`apply-update.sh` 또는
 `docker compose up ac-db-import`) 실행됩니다.
+
+**③이 핵심입니다** — 예전에는 새 모듈이 추가되면 그 모듈의 conf 파일을 SSH로
+접속해서 하나씩 복사해야 했지만, 이제 `apply-update.sh` 한 번으로 자동 배치됩니다.
+`${BASE_DATA_DIR}/configs/`에 이미 있는 파일(기존 모듈 튜닝값 포함)은 절대 덮어쓰지
+않고, 그 폴더에 아직 없는 파일(신규 모듈의 기본 conf)만 새로 놓습니다.
 
 **롤백**: 이미지 태그를 `latest`로 덮어쓰지 말고 버전 태그로 관리해두면, 문제가 생겼을 때
 이전 태그로 `docker compose up -d`만으로 되돌릴 수 있습니다. `dbimport`가 적용한 SQL은
