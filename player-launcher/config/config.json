@@ -1,0 +1,11 @@
+{
+  "auth_host": "xbox.pe.kr",
+  "auth_port": 3724,
+  "world_host": "xbox.pe.kr",
+  "world_port": 8085,
+  "client_dir": "client",
+  "client_exe": "Wow.exe",
+  "download_url": "https://example.com/client.exe",
+  "realmlist": "xbox.pe.kr",
+  "realmlist_api_url": "https://xbox.pe.kr:11220/api/realmlist"
+}
