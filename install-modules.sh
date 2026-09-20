@@ -142,6 +142,21 @@ install_one_module() {
     fi
   fi
 
+  # 특정 모듈에 남아있는 문제성 파일 제거 (SQL 수집 전에 처리)
+  case "$name" in
+    mod-player-bot-reset)
+      # 모듈 템플릿 보일러플레이트(how_to_make_a_module.md의 skeleton_module_acore_string.sql)를
+      # 저자가 리네임하지 않고 그대로 배포함. 이미 설치돼 있는 mod-dead-means-dead가 똑같은
+      # 파일명을 쓰고 있어서 dbimport가 "Duplicate filename" 오류로 World DB 업데이트 전체를
+      # 중단시킴 (실제로 로컬 테스트에서 재현됨). 두 파일 내용도 완전히 동일한 미사용 템플릿
+      # ("Hello World from Skeleton-Module!", acore_string 35410)이라 삭제해도 기능에 영향 없음.
+      if [[ -f "$dest/data/sql/db-world/base/skeleton_module_acore_string.sql" ]]; then
+        rm -f "$dest/data/sql/db-world/base/skeleton_module_acore_string.sql"
+        warn "$name: 다른 모듈과 파일명이 겹치는 미사용 템플릿 SQL 제거 (skeleton_module_acore_string.sql)"
+      fi
+      ;;
+  esac
+
   collect_sql "$name" "$dest"
   collect_conf "$name" "$dest"
   note_manual_steps "$name"

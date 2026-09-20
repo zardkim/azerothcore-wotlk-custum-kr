@@ -203,8 +203,11 @@ USER $DOCKER_USER
 
 ENV ACORE_COMPONENT=dbimport
 
+# dbimport never reads data/{Cameras,dbc,maps,mmaps,vmaps} (client-extracted map/DBC
+# binaries, ~4GB) — it only walks data/sql/* for SQL files. Copying the full `data`
+# directory here bloats this image for nothing.
 COPY --chown=$DOCKER_USER:$DOCKER_USER \
-    data data
+    data/sql data/sql
 
 COPY --chown=$DOCKER_USER:$DOCKER_USER \
     modules modules
