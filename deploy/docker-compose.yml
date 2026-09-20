@@ -3,27 +3,36 @@
 # 총 5개 상시 컨테이너를 사용합니다: ac-database, ac-worldserver, ac-authserver,
 # ac-playerbots-data-init(1회성), ac-web(웹 포털)
 # + ac-dirs-init(1회성) — BASE_DATA_DIR 하위 폴더가 없으면 docker compose up만으로 자동 생성
+# + ac-kr-data-init(1회성) — 한글 DBC/data를 최초 설치 시에만 자동으로 받아서 채움
 #
 # 모든 실제 데이터(설정/맵/DB/로그)는 .env의 BASE_DATA_DIR 아래에 눈에 보이는 폴더로 저장됩니다.
 #
 #   ${BASE_DATA_DIR}/configs         worldserver.conf, authserver.conf, 모듈 conf (직접 수정 가능)
-#   ${BASE_DATA_DIR}/data            실제 맵/vmap/mmap/dbc(koKR 포함) — ⚠ 직접 복사해서 채워야 함 (아래 참고)
+#   ${BASE_DATA_DIR}/data            실제 맵/vmap/mmap/dbc(koKR 포함) — 최초 설치 시 ac-kr-data-init이
+#                                    자동으로 채움(아래 참고). 이미 채워져 있으면 다시 건드리지 않음.
 #   ${BASE_DATA_DIR}/data/playbots   mod-playerbots 자체 갱신 확인용 SQL (자동 생성됨)
 #   ${BASE_DATA_DIR}/mysql           MySQL 데이터 파일 (65개 모듈+한글화 SQL 이미 적용됨, 비어있으면 자동 시딩)
 #   ${BASE_DATA_DIR}/logs            서버 로그
 #   ${BASE_DATA_DIR}/backups         계정/캐릭터 백업 (scripts/backup.sh 또는 관리자 웹 /admin/backups)
 #
-# ⚠ data/ 폴더(맵 데이터, 용량이 커서 이미지로 배포하지 않음)는 최초 1회 직접 복사해야 합니다.
-#   예: 기존 AzerothCore 서버의 data/{maps,vmaps,mmaps,dbc} 를 ${BASE_DATA_DIR}/data 로 복사
+# ⚠ data/ 폴더(맵 데이터, 용량이 커서 이미지로 배포하지 않음)는 ac-kr-data-init이 최초
+#   1회만 자동으로 내려받아 채웁니다 — .env에 KR_DATA_URL(data.zip)과 KR_DBC_URL(한글
+#   DBC zip, 1번을 푼 뒤 그 위에 덮어씀)을 지정해야 합니다(나스 파일 단위 공유 링크 등 —
+#   폴더 공유 링크는 안 됨, deploy/README.md 참고). 이미 data/dbc에 내용이 있으면
+#   (수동으로 넣어둔 경우 포함) 건드리지 않고 건너뜁니다. DBC/data 내용이 바뀌면 새
+#   zip으로 교체 후 ${BASE_DATA_DIR}/data/.kr-data-installed 마커 파일을 수동으로
+#   지워야 재설치됩니다.
 #
 # 사용법:
-#   1) .env.example -> .env 복사, BASE_DATA_DIR·DOCKER_REGISTRY 지정
+#   1) .env.example -> .env 복사, BASE_DATA_DIR·DOCKER_REGISTRY·KR_DATA_URL·KR_DBC_URL 지정
 #      (DOCKER_REGISTRY: 이 이미지들을 실제로 구운 자신의 레지스트리 주소+프로젝트,
 #      예: harbor.example.com/azerothcore. 이 저장소에는 실제 값을 커밋하지 않음.)
 #   2) ./setup.sh 실행 (폴더 생성 + configs 복사)
-#   3) ${BASE_DATA_DIR}/data 에 맵 데이터 직접 복사 (위 참고)
-#   4) 레지스트리가 private면: docker login $DOCKER_REGISTRY
-#   5) docker compose pull && docker compose up -d
+#   3) 레지스트리가 private면: docker login $DOCKER_REGISTRY
+#   4) docker compose pull && docker compose up -d
+#      (최초 기동 시 ac-kr-data-init이 한글 DBC/data를 자동으로 받아서 풀어줍니다 —
+#      용량에 따라 몇 분~몇십 분 걸릴 수 있으며, `docker compose logs -f ac-kr-data-init`
+#      으로 진행 상황을 볼 수 있습니다.)
 #
 # ⚠ 최초 기동 후 반드시 할 일: realmlist 주소를 이 서버의 실제 접속 주소로 변경
 #   docker exec -it ac-database mysql -uacore -pacore acore_auth \
@@ -39,6 +48,30 @@ services:
     volumes:
       - ${BASE_DATA_DIR}:/base
     command: ["sh", "-c", "mkdir -p /base/data/playbots /base/mysql /base/logs /base/web-data /base/backups && echo '>> 필요한 하위 폴더 준비 완료'"]
+
+  # 한글 DBC/data(Cameras/dbc/maps/mmaps/vmaps)를 최초 설치 시에만 나스 파일 공유에서
+  # 받아 압축을 푼다 — 클라이언트 추출 바이너리라 이미지에 포함하지 않는다. 이미
+  # 데이터가 있으면(마커 파일 또는 기존 dbc/ 내용) 즉시 건너뛰고, 그 이후 업데이트
+  # 때는 다시 확인하지 않는다 (scripts/kr-data-init.sh 참고).
+  ac-kr-data-init:
+    image: alpine:3.20
+    container_name: ac-kr-data-init
+    volumes:
+      - ${BASE_DATA_DIR}/data:/data
+      - ./scripts/kr-data-init.sh:/kr-data-init.sh:ro
+    environment:
+      # data/를 이미 수동으로 채워둘 계획이면 비워둬도 된다 — kr-data-init.sh가 기존
+      # 데이터 유무부터 먼저 확인하고, 필요할 때만 이 값을 요구한다.
+      KR_DATA_URL: ${KR_DATA_URL:-}
+      KR_DATA_SHA256: ${KR_DATA_SHA256:-}
+      # 한글 DBC(별도 zip) — dbc/ 바로 아래 같은 파일명을 덮어써서 기본 dbc를 한글판으로
+      # 교체한다. 비워두면 기본(영문) dbc만 설치된다.
+      KR_DBC_URL: ${KR_DBC_URL:-}
+      KR_DBC_SHA256: ${KR_DBC_SHA256:-}
+    entrypoint: ["sh", "/kr-data-init.sh"]
+    depends_on:
+      ac-dirs-init:
+        condition: service_completed_successfully
 
   # mod-playerbots가 기동 시마다 자기 자신의 커스텀 SQL 경로를 확인해서 신규 업데이트가
   # 있으면 적용한다. 이 폴더가 비어있으면 그 확인 단계에서 worldserver가 죽으므로 필요하다.
@@ -133,6 +166,8 @@ services:
       ac-database:
         condition: service_healthy
       ac-playerbots-data-init:
+        condition: service_completed_successfully
+      ac-kr-data-init:
         condition: service_completed_successfully
 
   ac-authserver:

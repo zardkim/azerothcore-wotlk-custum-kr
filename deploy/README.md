@@ -5,7 +5,8 @@
 이미지를 직접 빌드/push하는 방법은 아래 "코어/모듈 업데이트 적용" 절 참고.
 
 **상시 컨테이너**: `ac-database`, `ac-worldserver`, `ac-authserver`, `ac-web`(웹 포털) +
-1회성 `ac-dirs-init`(폴더 준비), `ac-playerbots-data-init`(mod-playerbots 갱신 확인).
+1회성 `ac-dirs-init`(폴더 준비), `ac-kr-data-init`(한글 DBC/data 최초 자동 설치),
+`ac-playerbots-data-init`(mod-playerbots 갱신 확인).
 
 모든 실제 데이터는 **사용자가 지정한 폴더 아래에 눈에 보이는 구조**로 저장됩니다 — 어떤 볼륨/디스크든
 경로 하나(`BASE_DATA_DIR`)만 바꾸면 그쪽에 설치됩니다.
@@ -13,7 +14,7 @@
 ```
 ${BASE_DATA_DIR}/
 ├── configs/         worldserver.conf, authserver.conf, 모듈 conf (직접 수정 가능)
-├── data/            실제 맵/vmap/mmap/dbc (koKR 포함) — ⚠ 직접 복사해야 함 (아래 참고)
+├── data/            실제 맵/vmap/mmap/dbc (koKR 포함) — 최초 설치 시 자동으로 채워짐 (아래 참고)
 │   └── playbots/    mod-playerbots 자체 갱신 확인용 SQL (자동 생성됨)
 ├── mysql/           MySQL 데이터 파일 (65개 모듈+한글화 SQL 이미 적용됨, 비어있으면 자동 시딩)
 └── logs/            서버 로그
@@ -22,57 +23,90 @@ ${BASE_DATA_DIR}/
 ## 배포 방법
 
 ```bash
-# 1) .env 준비 — BASE_DATA_DIR·DOCKER_REGISTRY를 배포 환경에 맞게 지정
+# 1) .env 준비 — BASE_DATA_DIR·DOCKER_REGISTRY·KR_DATA_URL·KR_DBC_URL을 배포 환경에 맞게 지정
 cp .env.example .env
 vi .env
 # Synology NAS 기본값: BASE_DATA_DIR=/volume1/docker/azerothcore (볼륨 번호는 원하는 대로)
 # Ubuntu 등 일반 리눅스 기본값: BASE_DATA_DIR=/opt/azerothcore
 # DOCKER_REGISTRY: 이 이미지들을 구워서 올려둔 자신의 레지스트리 주소+프로젝트
 # (예: harbor.example.com/azerothcore, 또는 Docker Hub 계정 등)
+# KR_DATA_URL/KR_DBC_URL: data.zip / 한글 DBC zip 다운로드 주소 (아래 참고)
 
 # 2) 필요한 폴더 미리 생성 + configs 복사 (최초 1회만)
 chmod +x setup.sh
 ./setup.sh
 
-# 3) 맵 데이터를 BASE_DATA_DIR/data 에 직접 복사 (최초 1회, 아래 참고) ⚠ 필수
-
-# 4) 레지스트리가 private면 로그인
+# 3) 레지스트리가 private면 로그인
 docker login "$DOCKER_REGISTRY"
 
-# 5) 실행
+# 4) 실행 — 최초 기동 시 ac-kr-data-init이 한글 DBC/data를 자동으로 받아서 풀어줍니다
 docker compose pull
 docker compose up -d
+docker compose logs -f ac-kr-data-init   # 진행 상황 확인 (용량에 따라 몇 분~몇십 분)
 ```
 
-### 3번: 맵 데이터(maps/vmaps/mmaps/dbc) 직접 복사
+### 한글 DBC/data(maps/vmaps/mmaps/dbc) — 최초 1회 자동 설치
 
-용량이 커서(약 4GB) 이미지로 배포하지 않습니다. 기존에 정상 작동하던 AzerothCore 서버가 있다면
-그 `data/` 폴더(하위에 `maps`, `vmaps`, `mmaps`, `dbc` 폴더 포함)를 그대로 복사하면 됩니다:
+용량이 커서(약 4GB) 이미지로 배포하지 않고, `ac-kr-data-init` 컨테이너가 나스 파일
+공유 등에서 두 zip을 순서대로 받아 `${BASE_DATA_DIR}/data/`에 자동으로 풀어줍니다:
+
+1. `KR_DATA_URL` → `data.zip` (Cameras/maps/mmaps/vmaps/기본 dbc)
+2. `KR_DBC_URL` → `DBC 3.3.5a 12340.zip` (한글 DBC) — 1번을 푼 뒤 그 위에 덮어써서
+   `data/dbc/` 안의 같은 파일명을 한글판으로 교체합니다(별도 `koKR` 서브폴더 아님).
+
+**Synology File Station의 "공유" 링크는 권장하지 않습니다** — 브라우저 전용 HTML
+페이지를 주는 경우가 있어 `curl`로 직접 받아지지 않습니다(실제로 겪음). 대신
+**Web Station 등으로 정적 파일 서버**를 하나 만들어서 그 위에 zip을 올려두고, 일반
+HTTP(S) 정적 파일 URL을 쓰세요 — 예: `https://dl.example.com/wow_data/data.zip`.
+파일명에 공백이 있으면 URL 인코딩(`%20`)이 필요합니다. 링크를 `.env`에 넣기 전에
+아래처럼 직접 확인해보세요:
 
 ```bash
-cp -r <기존 서버 경로>/data/. "${BASE_DATA_DIR}/data/"
+curl -fL -o /tmp/test.zip "<다운로드 주소>"   # HTML이 아니라 실제 zip이 받아져야 함
+curl -sI "<다운로드 주소>"                     # Content-Type: application/zip 인지 확인
 ```
 
-`dbc` 폴더 밑에 `koKR` 서브폴더가 없다면, 한글 DBC를 별도로 받아서 `${BASE_DATA_DIR}/data/dbc/koKR/`에
-넣어주세요 (AzerothCore가 기본 dbc 위에 로케일별로 자동으로 겹쳐서 읽습니다).
+- **최초 설치에서만 동작**: 이미 `${BASE_DATA_DIR}/data/dbc`에 내용이 있으면(과거에
+  수동으로 넣어둔 서버 포함) 아무것도 하지 않고 건너뜁니다 — 업데이트할 때마다 매번
+  다시 받지 않습니다.
+- **DBC/data 내용이 바뀌면**: 나스의 zip을 새 버전으로 교체한 뒤,
+  `${BASE_DATA_DIR}/data/.kr-data-installed` 마커 파일을 수동으로 지우고
+  `docker compose up ac-kr-data-init`을 다시 실행하면 재설치됩니다(자동 감지 아님 —
+  의도적으로 수동 절차로 둠).
+- **직접 복사하고 싶다면**: `KR_DATA_URL`/`KR_DBC_URL` 없이도 기존처럼
+  `${BASE_DATA_DIR}/data/`에 `maps`/`vmaps`/`mmaps`/`dbc`를 직접 복사해두면
+  `ac-kr-data-init`이 이를 인식하고 건너뜁니다.
+- `KR_DBC_URL`을 비워두면 기본(영문) dbc만 설치됩니다(한글 DBC는 나중에 수동으로
+  `${BASE_DATA_DIR}/data/dbc/`에 덮어써서 넣을 수 있습니다).
 
 ## 계정/캐릭터 백업 · 복원
 
-`scripts/backup.sh`, `scripts/restore.sh`는 `acore_auth`(계정)와 `acore_characters`
-(캐릭터)만 백업/복원합니다. `acore_playerbots`(봇)와 `acore_world`(게임 콘텐츠)는
-대상이 아닙니다 — 봇은 재기동 시 알아서 다시 채워지고, 게임 콘텐츠는 `ac-database-kr`
-이미지의 베이크드 시드가 원본이기 때문입니다.
+`scripts/backup.sh`, `scripts/restore.sh`는 **봇 계정(기본 접두어 `rndbot`)을 제외한
+실제 플레이어 계정/캐릭터만** 테이블 단위로 선별 백업/복원합니다 — `acore_auth`/
+`acore_characters` 전체를 통째로 덤프하지 않습니다. 이 프로젝트는 개인/소규모 운영이
+목적이라, 수만 개에 이를 수 있는 봇 계정까지 매번 백업하는 건 낭비이고 코어/모듈
+업데이트 전후로 실제 플레이어 진행 상황만 보존하면 충분합니다. `acore_playerbots`
+(봇 AI 상태)와 `acore_world`(게임 콘텐츠)도 원래부터 대상이 아닙니다 — 봇 계정 자체는
+재기동 시 mod-playerbots가 알아서 다시 채워주고, 게임 콘텐츠는 `ac-database-kr` 이미지의
+베이크드 시드가 원본이기 때문입니다.
 
 ```bash
 # 백업 (BASE_DATA_DIR/backups/<타임스탬프>/에 저장, 기본 14개 보관)
 ./scripts/backup.sh
-BACKUP_KEEP=30 ./scripts/backup.sh   # 보관 개수 조절
+BACKUP_KEEP=30 ./scripts/backup.sh    # 보관 개수 조절
+BOT_PREFIX=myprefix ./scripts/backup.sh  # 봇 계정 접두어를 바꿨다면 지정
+                                          # (playerbots.conf의 AiPlayerbot.RandomBotAccountPrefix와 맞출 것, 기본 rndbot)
 
-# 복원 (대상 DB가 비어있지 않으면 기본적으로 거부됨 — 병합이 아니라 덮어쓰기라서)
+# 복원 (대상 DB에 이미 실제 계정이 있으면 기본적으로 거부됨 — 병합이 아니라 교체라서.
+# 봇 계정은 영향받지 않음)
 find "$BASE_DATA_DIR/backups" -maxdepth 1 -type d   # 백업 목록 확인
 ./scripts/restore.sh <backup_id>
-./scripts/restore.sh <backup_id> --force             # 기존 계정이 있어도 강제 덮어쓰기
+./scripts/restore.sh <backup_id> --force             # 기존 실제 계정이 있어도 강제 덮어쓰기
 ```
+
+테이블 목록/필터 조건은 `scripts/lib/player-tables.sh`에서 관리하며, 웹 관리자 UI
+(`src/lib/backup-storage.ts`)도 정확히 같은 목록을 따로 유지합니다 — 둘 중 하나만
+고치면 CLI와 웹 UI 백업 범위가 서로 달라지니 항상 같이 수정하세요.
 
 복원 중에는 `ac-worldserver`/`ac-authserver`가 잠시 멈췄다가 완료 후 자동으로
 다시 시작됩니다.
